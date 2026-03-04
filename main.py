@@ -149,23 +149,32 @@ def finalizar(numero: int):
 
 @app.get("/cocina", response_class=HTMLResponse)
 def vista_cocina():
-    html = "<h1>Vista Cocina 👩‍🍳</h1><br>"
+    db = SessionLocal()
+    pedidos = db.query(PedidoDB).order_by(PedidoDB.id.desc()).all()
     
-    for i, pedido in enumerate(pedidos_cocina):
-        color = "orange" if pedido["estado"] == "Pendiente" else "green"
-        
+    html = "<h1>Vista Cocina 👩‍🍳</h1><br>"
+
+    for pedido in pedidos:
+        color = "orange" if pedido.estado == "Pendiente" else "green"
+
         html += f"""
         <div style='border:1px solid black;margin:10px;padding:10px;'>
-            <h3>Mesa {pedido['mesa']}</h3>
-            <p>{pedido['nombre']} x{pedido['cantidad']}</p>
-            <p>Comentario: {pedido['comentario']}</p>
-            <p>Estado: <b style='color:{color}'>{pedido['estado']}</b></p>
-            <form method='post' action='/cambiar_estado_cocina/{i}'>
+            <h3>Mesa {pedido.mesa}</h3>
+            <p>{pedido.nombre} x{pedido.cantidad}</p>
+            <p>Comentario: {pedido.comentario}</p>
+            <p>Estado: <b style='color:{color}'>{pedido.estado}</b></p>
+        """
+
+        if pedido.estado == "Pendiente":
+            html += f"""
+            <form method='post' action='/cambiar_estado_db/{pedido.id}'>
                 <button type='submit'>Marcar como Listo</button>
             </form>
-        </div>
-        """
-    
+            """
+
+        html += "</div>"
+
+    db.close()
     html += "<br><a href='/'>Volver</a>"
     return html
 
@@ -188,4 +197,16 @@ def cambiar_estado_cocina(index: int):
 
     db.close()
 
+    return RedirectResponse(url="/cocina", status_code=303)
+
+@app.post("/cambiar_estado_db/{pedido_id}")
+def cambiar_estado_db(pedido_id: int):
+    db = SessionLocal()
+    pedido = db.query(PedidoDB).filter(PedidoDB.id == pedido_id).first()
+
+    if pedido:
+        pedido.estado = "Listo"
+        db.commit()
+
+    db.close()
     return RedirectResponse(url="/cocina", status_code=303)
