@@ -20,8 +20,6 @@ class PedidoDB(Base):
     comentario = Column(String)
     estado = Column(String)
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
 
 class PlatoDB(Base):
@@ -30,6 +28,8 @@ class PlatoDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True)
     precio = Column(Float)
+
+Base.metadata.create_all(bind=engine)
 
 # 10 mesas
 mesas = {i: {"estado": "Libre", "pedido": []} for i in range(1, 11)}
