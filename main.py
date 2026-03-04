@@ -117,13 +117,26 @@ def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(.
         "comentario": comentario
     })
 
+    # 🔥 Guardar en base de datos
+    db = SessionLocal()
+    nuevo_pedido = PedidoDB(
+        mesa=numero,
+        nombre=plato["nombre"],
+        cantidad=cantidad,
+        comentario=comentario,
+        estado="Pendiente"
+    )
+    db.add(nuevo_pedido)
+    db.commit()
+    db.close()
+
     pedidos_cocina.append({
-    "mesa": numero,
-    "nombre": plato["nombre"],
-    "cantidad": cantidad,
-    "comentario": comentario,
-    "estado": "Pendiente"
-})
+        "mesa": numero,
+        "nombre": plato["nombre"],
+        "cantidad": cantidad,
+        "comentario": comentario,
+        "estado": "Pendiente"
+    })
     
     return RedirectResponse(url=f"/mesa/{numero}", status_code=303)
 
@@ -158,5 +171,21 @@ def vista_cocina():
 
 @app.post("/cambiar_estado_cocina/{index}")
 def cambiar_estado_cocina(index: int):
+    
     pedidos_cocina[index]["estado"] = "Listo"
+
+    # 🔥 Actualizar en base de datos
+    db = SessionLocal()
+    pedido_db = db.query(PedidoDB).filter(
+        PedidoDB.mesa == pedidos_cocina[index]["mesa"],
+        PedidoDB.nombre == pedidos_cocina[index]["nombre"],
+        PedidoDB.estado == "Pendiente"
+    ).first()
+
+    if pedido_db:
+        pedido_db.estado = "Listo"
+        db.commit()
+
+    db.close()
+
     return RedirectResponse(url="/cocina", status_code=303)
