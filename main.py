@@ -67,7 +67,10 @@ def ver_mesa(numero: int):
     db = SessionLocal()
 
     platos = db.query(PlatoDB).all()
-    pedidos = db.query(PedidoDB).filter(PedidoDB.mesa == numero).all()
+    pedidos = db.query(PedidoDB).filter(
+    PedidoDB.mesa == numero,
+    PedidoDB.cerrado == False
+).all()
 
     html = f"<h1>Mesa {numero}</h1>"
 
@@ -114,6 +117,13 @@ def ver_mesa(numero: int):
 
     html += f"<h2>Total: ${total:.2f}</h2>"
 
+    html += f"""
+<form method="post" action="/cerrar_mesa/{numero}">
+    <button type="submit" style="background:red;color:white;">
+        💰 Cerrar Cuenta
+    </button>
+</form>
+"""
     html += "<br><a href='/'>⬅ Volver al inicio</a>"
 
     db.close()
@@ -278,3 +288,20 @@ def agregar_plato_db(numero: int, plato_id: int = Form(...), cantidad: int = For
 
     db.close()
     return RedirectResponse(f"/mesa/{numero}", status_code=303)
+
+@app.post("/cerrar_mesa/{numero}")
+def cerrar_mesa(numero: int):
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.mesa == numero,
+        PedidoDB.cerrado == False
+    ).all()
+
+    for pedido in pedidos:
+        pedido.cerrado = True
+
+    db.commit()
+    db.close()
+
+    return RedirectResponse("/", status_code=303)
