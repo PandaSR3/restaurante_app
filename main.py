@@ -1,6 +1,7 @@
+from datetime import datetime, date
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 
@@ -20,6 +21,7 @@ class PedidoDB(Base):
     comentario = Column(String)
     estado = Column(String)
     cerrado = Column(Boolean, default=False)
+    fecha = Column(DateTime, default=datetime.utcnow)
 app = FastAPI()
 
 class PlatoDB(Base):
@@ -47,6 +49,7 @@ def home():
     html = "<h1>Mesas Restaurante 🍽️</h1><br>"
     html += "<br><a href='/admin/platos'>⚙️ Administrar Platos</a><br><br>"
     html += "<br><a href='/admin/historial'>📊 Ver Historial</a><br>"
+    html += "<br><a href='/admin/hoy'>📅 Ventas de Hoy</a><br>"
     
     for numero, datos in mesas.items():
         estado = datos["estado"]
@@ -332,6 +335,41 @@ def ver_historial():
             """
 
     html += f"<hr><h2>Total Vendido: ${total_general:.2f}</h2>"
+    html += "<br><a href='/'>⬅ Volver</a>"
+
+    db.close()
+    return html
+
+@app.get("/admin/hoy", response_class=HTMLResponse)
+def ventas_hoy():
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.cerrado == True
+    ).all()
+
+    html = "<h1>Ventas de Hoy 📅</h1><hr>"
+
+    total = 0
+
+    for pedido in pedidos:
+        if pedido.fecha.date() == hoy:
+            plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
+            if plato:
+                subtotal = plato.precio * pedido.cantidad
+                total += subtotal
+
+                html += f"""
+                <p>
+                Mesa {pedido.mesa} - 
+                {pedido.nombre} x{pedido.cantidad} 
+                = ${subtotal:.2f}
+                </p>
+                """
+
+    html += f"<hr><h2>Total Hoy: ${total:.2f}</h2>"
     html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
