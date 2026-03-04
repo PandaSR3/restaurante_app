@@ -49,6 +49,15 @@ def ver_mesa(numero: int):
         html += f"<p>{item['nombre']} x{item['cantidad']} - S/ {subtotal}</p>"
     
     html += f"<h3>Total: S/ {total}</h3>"
+
+    if mesa["pedido"]:
+      html += f"""
+      <form method='post' action='/finalizar/{numero}'>
+        <button style='background-color:green;color:white;padding:10px;'>
+            FINALIZAR SERVICIO
+        </button>
+    </form>
+    """
     
     # Formulario para agregar platos
     html += f"""
@@ -87,3 +96,10 @@ def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(.
     })
     
     return RedirectResponse(url=f"/mesa/{numero}", status_code=303)
+
+@app.post("/finalizar/{numero}")
+def finalizar(numero: int):
+    mesas[numero]["pedido"] = []
+    mesas[numero]["estado"] = "Libre"
+    
+    return RedirectResponse(url="/", status_code=303)
