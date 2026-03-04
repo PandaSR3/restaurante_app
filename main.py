@@ -24,6 +24,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+class PlatoDB(Base):
+    __tablename__ = "platos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, unique=True)
+    precio = Column(Float)
+
 # 10 mesas
 mesas = {i: {"estado": "Libre", "pedido": []} for i in range(1, 11)}
 
@@ -210,3 +217,35 @@ def cambiar_estado_db(pedido_id: int):
 
     db.close()
     return RedirectResponse(url="/cocina", status_code=303)
+
+@app.get("/admin/platos", response_class=HTMLResponse)
+def admin_platos():
+    db = SessionLocal()
+    platos = db.query(PlatoDB).all()
+
+    html = "<h1>Administrador de Platos 🍽️</h1>"
+
+    html += """
+    <form method="post" action="/admin/platos">
+        Nombre: <input name="nombre">
+        Precio: <input name="precio" type="number" step="0.01">
+        <button type="submit">Agregar</button>
+    </form>
+    <hr>
+    """
+
+    for plato in platos:
+        html += f"<p>{plato.nombre} - ${plato.precio}</p>"
+
+    db.close()
+    return html
+
+
+@app.post("/admin/platos")
+def agregar_plato(nombre: str = Form(...), precio: float = Form(...)):
+    db = SessionLocal()
+    nuevo = PlatoDB(nombre=nombre, precio=precio)
+    db.add(nuevo)
+    db.commit()
+    db.close()
+    return RedirectResponse("/admin/platos", status_code=303)
