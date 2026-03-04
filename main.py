@@ -46,6 +46,7 @@ pedidos_cocina = []
 def home():
     html = "<h1>Mesas Restaurante 🍽️</h1><br>"
     html += "<br><a href='/admin/platos'>⚙️ Administrar Platos</a><br><br>"
+    html += "<br><a href='/admin/historial'>📊 Ver Historial</a><br>"
     
     for numero, datos in mesas.items():
         estado = datos["estado"]
@@ -305,3 +306,33 @@ def cerrar_mesa(numero: int):
     db.close()
 
     return RedirectResponse("/", status_code=303)
+
+@app.get("/admin/historial", response_class=HTMLResponse)
+def ver_historial():
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
+
+    html = "<h1>Historial de Ventas 💰</h1><hr>"
+
+    total_general = 0
+
+    for pedido in pedidos:
+        plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
+        if plato:
+            subtotal = plato.precio * pedido.cantidad
+            total_general += subtotal
+
+            html += f"""
+            <p>
+            Mesa {pedido.mesa} - 
+            {pedido.nombre} x{pedido.cantidad} 
+            = ${subtotal:.2f}
+            </p>
+            """
+
+    html += f"<hr><h2>Total Vendido: ${total_general:.2f}</h2>"
+    html += "<br><a href='/'>⬅ Volver</a>"
+
+    db.close()
+    return html
