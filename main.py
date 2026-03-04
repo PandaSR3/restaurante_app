@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 
@@ -19,7 +19,7 @@ class PedidoDB(Base):
     cantidad = Column(Integer)
     comentario = Column(String)
     estado = Column(String)
-
+    cerrado = Column(Boolean, default=False)
 app = FastAPI()
 
 class PlatoDB(Base):
