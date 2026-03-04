@@ -51,7 +51,7 @@ def ver_mesa(numero: int):
     html += f"<h3>Total: S/ {total}</h3>"
     
     # Formulario para agregar platos
-    html += """
+    html += f"""
     <h2>Agregar Plato</h2>
     <form method='post' action='/agregar_plato/{numero}'>
     """
