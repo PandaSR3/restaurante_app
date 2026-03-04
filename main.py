@@ -1,5 +1,26 @@
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import declarative_base, sessionmaker
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
+Base = declarative_base()
+
+class PedidoDB(Base):
+    __tablename__ = "pedidos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mesa = Column(Integer)
+    nombre = Column(String)
+    cantidad = Column(Integer)
+    comentario = Column(String)
+    estado = Column(String)
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
