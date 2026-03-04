@@ -12,6 +12,7 @@ menu = {
     2: {"nombre": "Ají de Gallina", "precio": 22},
     3: {"nombre": "Arroz Chaufa", "precio": 20},
 }
+pedidos_cocina = []
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -94,6 +95,14 @@ def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(.
         "cantidad": cantidad,
         "comentario": comentario
     })
+
+    pedidos_cocina.append({
+    "mesa": numero,
+    "nombre": plato["nombre"],
+    "cantidad": cantidad,
+    "comentario": comentario,
+    "estado": "Pendiente"
+})
     
     return RedirectResponse(url=f"/mesa/{numero}", status_code=303)
 
@@ -103,3 +112,30 @@ def finalizar(numero: int):
     mesas[numero]["estado"] = "Libre"
     
     return RedirectResponse(url="/", status_code=303)
+
+@app.get("/cocina", response_class=HTMLResponse)
+def vista_cocina():
+    html = "<h1>Vista Cocina 👩‍🍳</h1><br>"
+    
+    for i, pedido in enumerate(pedidos_cocina):
+        color = "orange" if pedido["estado"] == "Pendiente" else "green"
+        
+        html += f"""
+        <div style='border:1px solid black;margin:10px;padding:10px;'>
+            <h3>Mesa {pedido['mesa']}</h3>
+            <p>{pedido['nombre']} x{pedido['cantidad']}</p>
+            <p>Comentario: {pedido['comentario']}</p>
+            <p>Estado: <b style='color:{color}'>{pedido['estado']}</b></p>
+            <form method='post' action='/cambiar_estado_cocina/{i}'>
+                <button type='submit'>Marcar como Listo</button>
+            </form>
+        </div>
+        """
+    
+    html += "<br><a href='/'>Volver</a>"
+    return html
+
+@app.post("/cambiar_estado_cocina/{index}")
+def cambiar_estado_cocina(index: int):
+    pedidos_cocina[index]["estado"] = "Listo"
+    return RedirectResponse(url="/cocina", status_code=303)
