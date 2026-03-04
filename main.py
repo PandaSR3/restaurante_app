@@ -45,6 +45,7 @@ pedidos_cocina = []
 @app.get("/", response_class=HTMLResponse)
 def home():
     html = "<h1>Mesas Restaurante 🍽️</h1><br>"
+    html += "<br><a href='/admin/platos'>⚙️ Administrar Platos</a><br><br>"
     
     for numero, datos in mesas.items():
         estado = datos["estado"]
