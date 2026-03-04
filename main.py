@@ -65,15 +65,18 @@ def home():
 @app.get("/mesa/{numero}", response_class=HTMLResponse)
 def ver_mesa(numero: int):
     db = SessionLocal()
+
     platos = db.query(PlatoDB).all()
+    pedidos = db.query(PedidoDB).filter(PedidoDB.mesa == numero).all()
 
     html = f"<h1>Mesa {numero}</h1>"
 
-    html += """
-    <form method="post" action="/agregar_plato_db/{}">
+    # ----- FORMULARIO -----
+    html += f"""
+    <form method="post" action="/agregar_plato_db/{numero}">
         <label>Plato:</label>
         <select name="plato_id">
-    """.format(numero)
+    """
 
     for plato in platos:
         html += f"<option value='{plato.id}'>{plato.nombre} - ${plato.precio}</option>"
@@ -86,6 +89,32 @@ def ver_mesa(numero: int):
     </form>
     <hr>
     """
+
+    # ----- PEDIDOS ACTUALES -----
+    html += "<h3>Pedidos:</h3>"
+
+    total = 0
+
+    for pedido in pedidos:
+        subtotal = 0
+
+        # Obtener precio del plato
+        plato_db = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
+        if plato_db:
+            subtotal = plato_db.precio * pedido.cantidad
+            total += subtotal
+
+        html += f"""
+        <p>
+        {pedido.nombre} x{pedido.cantidad} 
+        - ${subtotal:.2f} 
+        ({pedido.estado})
+        </p>
+        """
+
+    html += f"<h2>Total: ${total:.2f}</h2>"
+
+    html += "<br><a href='/'>⬅ Volver al inicio</a>"
 
     db.close()
     return html
