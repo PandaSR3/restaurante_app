@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 
@@ -242,7 +242,7 @@ def admin_platos():
 
 
 @app.post("/admin/platos")
-def agregar_plato(nombre: str = Form(...), precio: float = Form(...)):
+def agregar_plato_admin(nombre: str = Form(...), precio: float = Form(...)):
     db = SessionLocal()
     nuevo = PlatoDB(nombre=nombre, precio=precio)
     db.add(nuevo)
