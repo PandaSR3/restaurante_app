@@ -106,15 +106,24 @@ def ver_mesa(numero: int):
 
     html += f"""
     <form method="post" action="/cerrar_mesa/{numero}">
+    <h2>Total actual: ${{total}}</h2>
         <button type="submit" style="background:red;color:white;">
             💰 Cerrar Cuenta
         </button>
     </form>
+    <br><br>
+<a href="/">⬅ Volver al inicio</a>
     """
 
     html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
+    total = sum(
+    p.plato.precio * p.cantidad 
+    for p in pedidos 
+    if p.estado != "cerrado"
+)
+    total = sum(p.plato.precio * p.cantidad for p in pedidos)
     return html
 
 # -------------------- AGREGAR PLATO --------------------
