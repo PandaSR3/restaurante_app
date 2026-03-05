@@ -24,6 +24,7 @@ class PedidoDB(Base):
     cantidad = Column(Integer)
     comentario = Column(String)
     estado = Column(String)
+    precio = Column(Float)
     cerrado = Column(Boolean, default=False)
     fecha = Column(DateTime, default=datetime.utcnow)
 
@@ -85,15 +86,10 @@ def ver_mesa(numero: int):
     <hr>
     """
 
-    total = 0
+    total = sum(p.precio * p.cantidad for p in pedidos)
 
     for pedido in pedidos:
-        plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
-        subtotal = 0
-
-        if plato:
-            subtotal = plato.precio * pedido.cantidad
-            total += subtotal
+        subtotal = pedido.precio * pedido.cantidad
 
         html += f"""
         <p>
@@ -131,7 +127,8 @@ def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(.
             nombre=plato.nombre,
             cantidad=cantidad,
             comentario=comentario,
-            estado="Pendiente"
+            estado="Pendiente",
+            precio=plato.precio 
         )
         db.add(nuevo)
         db.commit()
@@ -256,9 +253,7 @@ def historial():
     total = 0
 
     for pedido in pedidos:
-        plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
-        if plato:
-            subtotal = plato.precio * pedido.cantidad
+            subtotal = pedido.precio * pedido.cantidad
             total += subtotal
 
             html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
@@ -283,10 +278,8 @@ def ventas_hoy():
     total = 0
 
     for pedido in pedidos:
-        if pedido.fecha and pedido.fecha.date() == hoy:
-            plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
-            if plato:
-                subtotal = plato.precio * pedido.cantidad
+        if pedido.fecha and pedido.fecha.date() == hoy: 
+                subtotal = pedido.precio * pedido.cantidad
                 total += subtotal
                 html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
 
