@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
-
+ADMIN_PASSWORD = "1234"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
@@ -44,7 +44,7 @@ Base.metadata.create_all(bind=engine)
 def home():
     html = "<h1>Mesas Restaurante 🍽️</h1><br>"
 
-    html += "<a href='/admin/platos'>⚙️ Administrar Platos</a><br>"
+    html += "<a href='/admin/login'>⚙️ Administrar Platos</a><br>"
     html += "<a href='/admin/historial'>📊 Historial</a><br>"
     html += "<a href='/admin/hoy'>📅 Ventas de Hoy</a><br>"
     html += "<a href='/cocina'>👩‍🍳 Cocina</a><br><br>"
@@ -295,3 +295,21 @@ def ventas_hoy():
 
     db.close()
     return html
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def login_admin():
+    return """
+    <h1>Login Administrador 🔐</h1>
+    <form method="post" action="/admin/login">
+        Contraseña: <input type="password" name="password">
+        <button type="submit">Entrar</button>
+    </form>
+    <br><a href='/'>⬅ Volver</a>
+    """
+
+@app.post("/admin/login")
+def validar_login(password: str = Form(...)):
+    if password == ADMIN_PASSWORD:
+        return RedirectResponse("/admin/platos", status_code=303)
+    else:
+        return HTMLResponse("<h3>❌ Contraseña incorrecta</h3><a href='/admin/login'>Volver</a>")
