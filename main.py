@@ -57,15 +57,67 @@ Base.metadata.create_all(bind=engine)
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    html = "<h1>Mesas Restaurante 🍽️</h1><br>"
+    html = """
+    <html>
+    <head>
+        <title>POS Restaurante</title>
+        <style>
+            body {
+                font-family: Arial;
+                text-align: center;
+                background-color: #f4f6f9;
+            }
+            h1 {
+                color: #333;
+            }
+            .menu {
+                margin: 20px;
+            }
+            .menu a {
+                margin: 10px;
+                padding: 10px 20px;
+                background-color: #2c3e50;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+            }
+            .mesas {
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 15px;
+                margin: 30px;
+            }
+            .mesa {
+                padding: 20px;
+                background-color: white;
+                border-radius: 12px;
+                box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+                text-decoration: none;
+                color: black;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🍽️ Sistema POS Restaurante</h1>
 
-    html += "<a href='/admin/login'>⚙️ Administrar Platos</a><br>"
-    html += "<a href='/admin/historial'>📊 Historial</a><br>"
-    html += "<a href='/admin/hoy'>📅 Ventas de Hoy</a><br>"
-    html += "<a href='/cocina'>👩‍🍳 Cocina</a><br><br>"
+        <div class="menu">
+            <a href='/admin/login'>⚙️ Admin</a>
+            <a href='/admin/hoy'>📊 Dashboard</a>
+            <a href='/cocina'>👩‍🍳 Cocina</a>
+        </div>
+
+        <div class="mesas">
+    """
 
     for i in range(1, 11):
-        html += f"<a href='/mesa/{i}'>Mesa {i}</a><br>"
+        html += f"<a class='mesa' href='/mesa/{i}'>Mesa {i}</a>"
+
+    html += """
+        </div>
+    </body>
+    </html>
+    """
 
     return html
 
