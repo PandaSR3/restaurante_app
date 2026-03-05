@@ -42,8 +42,6 @@ class PlatoDB(Base):
     precio = Column(Float)
 
 
-Base.metadata.create_all(bind=engine)
-
 class VentaDB(Base):
     __tablename__ = "ventas"
 
@@ -52,6 +50,8 @@ class VentaDB(Base):
     total = Column(Float)
     metodo_pago = Column(String)
     fecha = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
 
 # -------------------- INICIO --------------------
 
