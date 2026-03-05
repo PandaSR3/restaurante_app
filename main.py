@@ -11,6 +11,10 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
+app = FastAPI()
+
+# -------------------- MODELOS --------------------
+
 class PedidoDB(Base):
     __tablename__ = "pedidos"
 
@@ -22,7 +26,7 @@ class PedidoDB(Base):
     estado = Column(String)
     cerrado = Column(Boolean, default=False)
     fecha = Column(DateTime, default=datetime.utcnow)
-app = FastAPI()
+
 
 class PlatoDB(Base):
     __tablename__ = "platos"
@@ -31,40 +35,26 @@ class PlatoDB(Base):
     nombre = Column(String, unique=True)
     precio = Column(Float)
 
+
 Base.metadata.create_all(bind=engine)
 
-# 10 mesas
-mesas = {i: {"estado": "Libre", "pedido": []} for i in range(1, 11)}
-
-# Carta simple
-menu = {
-    1: {"nombre": "Lomo Saltado", "precio": 25},
-    2: {"nombre": "Ají de Gallina", "precio": 22},
-    3: {"nombre": "Arroz Chaufa", "precio": 20},
-}
-pedidos_cocina = []
+# -------------------- INICIO --------------------
 
 @app.get("/", response_class=HTMLResponse)
 def home():
     html = "<h1>Mesas Restaurante 🍽️</h1><br>"
-    html += "<br><a href='/admin/platos'>⚙️ Administrar Platos</a><br><br>"
-    html += "<br><a href='/admin/historial'>📊 Ver Historial</a><br>"
-    html += "<br><a href='/admin/hoy'>📅 Ventas de Hoy</a><br>"
-    
-    for numero, datos in mesas.items():
-        estado = datos["estado"]
-        color = "green" if estado == "Libre" else "red"
-        
-        html += f"""
-        <div style='margin:10px; padding:10px; border:1px solid black;'>
-            <h3>Mesa {numero}</h3>
-            <p>Estado: <b style='color:{color}'>{estado}</b></p>
-            <a href='/mesa/{numero}'>Entrar</a>
-        </div>
-        """
-    
+
+    html += "<a href='/admin/platos'>⚙️ Administrar Platos</a><br>"
+    html += "<a href='/admin/historial'>📊 Historial</a><br>"
+    html += "<a href='/admin/hoy'>📅 Ventas de Hoy</a><br>"
+    html += "<a href='/cocina'>👩‍🍳 Cocina</a><br><br>"
+
+    for i in range(1, 11):
+        html += f"<a href='/mesa/{i}'>Mesa {i}</a><br>"
+
     return html
 
+# -------------------- MESA --------------------
 
 @app.get("/mesa/{numero}", response_class=HTMLResponse)
 def ver_mesa(numero: int):
@@ -72,16 +62,14 @@ def ver_mesa(numero: int):
 
     platos = db.query(PlatoDB).all()
     pedidos = db.query(PedidoDB).filter(
-    PedidoDB.mesa == numero,
-    PedidoDB.cerrado == False
-).all()
+        PedidoDB.mesa == numero,
+        PedidoDB.cerrado == False
+    ).all()
 
     html = f"<h1>Mesa {numero}</h1>"
 
-    # ----- FORMULARIO -----
     html += f"""
-    <form method="post" action="/agregar_plato_db/{numero}">
-        <label>Plato:</label>
+    <form method="post" action="/agregar_plato/{numero}">
         <select name="plato_id">
     """
 
@@ -97,24 +85,19 @@ def ver_mesa(numero: int):
     <hr>
     """
 
-    # ----- PEDIDOS ACTUALES -----
-    html += "<h3>Pedidos:</h3>"
-
     total = 0
 
     for pedido in pedidos:
+        plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
         subtotal = 0
-
-        # Obtener precio del plato
-        plato_db = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
-        if plato_db:
-            subtotal = plato_db.precio * pedido.cantidad
+        if plato:
+            subtotal = plato.precio * pedido.cantidad
             total += subtotal
 
         html += f"""
         <p>
-        {pedido.nombre} x{pedido.cantidad} 
-        - ${subtotal:.2f} 
+        {pedido.nombre} x{pedido.cantidad}
+        - ${subtotal:.2f}
         ({pedido.estado})
         </p>
         """
@@ -122,66 +105,68 @@ def ver_mesa(numero: int):
     html += f"<h2>Total: ${total:.2f}</h2>"
 
     html += f"""
-<form method="post" action="/cerrar_mesa/{numero}">
-    <button type="submit" style="background:red;color:white;">
-        💰 Cerrar Cuenta
-    </button>
-</form>
-"""
-    html += "<br><a href='/'>⬅ Volver al inicio</a>"
+    <form method="post" action="/cerrar_mesa/{numero}">
+        <button type="submit" style="background:red;color:white;">
+            💰 Cerrar Cuenta
+        </button>
+    </form>
+    """
+
+    html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
     return html
 
+# -------------------- AGREGAR PLATO --------------------
 
 @app.post("/agregar_plato/{numero}")
 def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(...), comentario: str = Form("")):
-    
-    plato = menu[plato_id]
-    
-    mesas[numero]["estado"] = "Ocupada"
-    mesas[numero]["pedido"].append({
-        "nombre": plato["nombre"],
-        "precio": plato["precio"],
-        "cantidad": cantidad,
-        "comentario": comentario
-    })
-
-    # 🔥 Guardar en base de datos
     db = SessionLocal()
-    nuevo_pedido = PedidoDB(
-        mesa=numero,
-        nombre=plato["nombre"],
-        cantidad=cantidad,
-        comentario=comentario,
-        estado="Pendiente"
-    )
-    db.add(nuevo_pedido)
+
+    plato = db.query(PlatoDB).filter(PlatoDB.id == plato_id).first()
+
+    if plato:
+        nuevo = PedidoDB(
+            mesa=numero,
+            nombre=plato.nombre,
+            cantidad=cantidad,
+            comentario=comentario,
+            estado="Pendiente"
+        )
+        db.add(nuevo)
+        db.commit()
+
+    db.close()
+    return RedirectResponse(f"/mesa/{numero}", status_code=303)
+
+# -------------------- CERRAR MESA --------------------
+
+@app.post("/cerrar_mesa/{numero}")
+def cerrar_mesa(numero: int):
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.mesa == numero,
+        PedidoDB.cerrado == False
+    ).all()
+
+    for pedido in pedidos:
+        pedido.cerrado = True
+
     db.commit()
     db.close()
 
-    pedidos_cocina.append({
-        "mesa": numero,
-        "nombre": plato["nombre"],
-        "cantidad": cantidad,
-        "comentario": comentario,
-        "estado": "Pendiente"
-    })
-    
-    return RedirectResponse(url=f"/mesa/{numero}", status_code=303)
+    return RedirectResponse("/", status_code=303)
 
-@app.post("/finalizar/{numero}")
-def finalizar(numero: int):
-    mesas[numero]["pedido"] = []
-    mesas[numero]["estado"] = "Libre"
-    
-    return RedirectResponse(url="/", status_code=303)
+# -------------------- COCINA --------------------
 
 @app.get("/cocina", response_class=HTMLResponse)
-def vista_cocina():
+def cocina():
     db = SessionLocal()
-    pedidos = db.query(PedidoDB).order_by(PedidoDB.id.desc()).all()
-    
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.cerrado == False
+    ).order_by(PedidoDB.id.desc()).all()
+
     html = "<h1>Vista Cocina 👩‍🍳</h1><br>"
 
     for pedido in pedidos:
@@ -197,40 +182,21 @@ def vista_cocina():
 
         if pedido.estado == "Pendiente":
             html += f"""
-            <form method='post' action='/cambiar_estado_db/{pedido.id}'>
+            <form method='post' action='/cambiar_estado/{pedido.id}'>
                 <button type='submit'>Marcar como Listo</button>
             </form>
             """
 
         html += "</div>"
 
-    db.close()
     html += "<br><a href='/'>Volver</a>"
+
+    db.close()
     return html
 
-@app.post("/cambiar_estado_cocina/{index}")
-def cambiar_estado_cocina(index: int):
-    
-    pedidos_cocina[index]["estado"] = "Listo"
 
-    # 🔥 Actualizar en base de datos
-    db = SessionLocal()
-    pedido_db = db.query(PedidoDB).filter(
-        PedidoDB.mesa == pedidos_cocina[index]["mesa"],
-        PedidoDB.nombre == pedidos_cocina[index]["nombre"],
-        PedidoDB.estado == "Pendiente"
-    ).first()
-
-    if pedido_db:
-        pedido_db.estado = "Listo"
-        db.commit()
-
-    db.close()
-
-    return RedirectResponse(url="/cocina", status_code=303)
-
-@app.post("/cambiar_estado_db/{pedido_id}")
-def cambiar_estado_db(pedido_id: int):
+@app.post("/cambiar_estado/{pedido_id}")
+def cambiar_estado(pedido_id: int):
     db = SessionLocal()
     pedido = db.query(PedidoDB).filter(PedidoDB.id == pedido_id).first()
 
@@ -239,7 +205,9 @@ def cambiar_estado_db(pedido_id: int):
         db.commit()
 
     db.close()
-    return RedirectResponse(url="/cocina", status_code=303)
+    return RedirectResponse("/cocina", status_code=303)
+
+# -------------------- ADMIN PLATOS --------------------
 
 @app.get("/admin/platos", response_class=HTMLResponse)
 def admin_platos():
@@ -260,6 +228,8 @@ def admin_platos():
     for plato in platos:
         html += f"<p>{plato.nombre} - ${plato.precio}</p>"
 
+    html += "<br><a href='/'>⬅ Volver</a>"
+
     db.close()
     return html
 
@@ -273,101 +243,52 @@ def agregar_plato_admin(nombre: str = Form(...), precio: float = Form(...)):
     db.close()
     return RedirectResponse("/admin/platos", status_code=303)
 
-@app.post("/agregar_plato_db/{numero}")
-def agregar_plato_db(numero: int, plato_id: int = Form(...), cantidad: int = Form(...), comentario: str = Form("")):
-    db = SessionLocal()
-
-    plato = db.query(PlatoDB).filter(PlatoDB.id == plato_id).first()
-
-    if plato:
-        nuevo_pedido = PedidoDB(
-            mesa=numero,
-            nombre=plato.nombre,
-            cantidad=cantidad,
-            comentario=comentario,
-            estado="Pendiente"
-        )
-        db.add(nuevo_pedido)
-        db.commit()
-
-    db.close()
-    return RedirectResponse(f"/mesa/{numero}", status_code=303)
-
-@app.post("/cerrar_mesa/{numero}")
-def cerrar_mesa(numero: int):
-    db = SessionLocal()
-
-    pedidos = db.query(PedidoDB).filter(
-        PedidoDB.mesa == numero,
-        PedidoDB.cerrado == False
-    ).all()
-
-    for pedido in pedidos:
-        pedido.cerrado = True
-
-    db.commit()
-    db.close()
-
-    return RedirectResponse("/", status_code=303)
+# -------------------- HISTORIAL --------------------
 
 @app.get("/admin/historial", response_class=HTMLResponse)
-def ver_historial():
+def historial():
     db = SessionLocal()
 
     pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
 
     html = "<h1>Historial de Ventas 💰</h1><hr>"
 
-    total_general = 0
+    total = 0
 
     for pedido in pedidos:
         plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
         if plato:
             subtotal = plato.precio * pedido.cantidad
-            total_general += subtotal
+            total += subtotal
 
-            html += f"""
-            <p>
-            Mesa {pedido.mesa} - 
-            {pedido.nombre} x{pedido.cantidad} 
-            = ${subtotal:.2f}
-            </p>
-            """
+            html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
 
-    html += f"<hr><h2>Total Vendido: ${total_general:.2f}</h2>"
+    html += f"<hr><h2>Total General: ${total:.2f}</h2>"
     html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
     return html
+
+# -------------------- VENTAS HOY --------------------
 
 @app.get("/admin/hoy", response_class=HTMLResponse)
 def ventas_hoy():
     db = SessionLocal()
 
     hoy = date.today()
-
-    pedidos = db.query(PedidoDB).filter(
-        PedidoDB.cerrado == True
-    ).all()
+    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
 
     html = "<h1>Ventas de Hoy 📅</h1><hr>"
 
     total = 0
 
     for pedido in pedidos:
-        if pedido.fecha.date() == hoy:
+        if pedido.fecha and pedido.fecha.date() == hoy:
             plato = db.query(PlatoDB).filter(PlatoDB.nombre == pedido.nombre).first()
             if plato:
                 subtotal = plato.precio * pedido.cantidad
                 total += subtotal
-
-                html += f"""
-                <p>
-                Mesa {pedido.mesa} - 
-                {pedido.nombre} x{pedido.cantidad} 
-                = ${subtotal:.2f}
-                </p>
-                """
+                html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
 
     html += f"<hr><h2>Total Hoy: ${total:.2f}</h2>"
     html += "<br><a href='/'>⬅ Volver</a>"
