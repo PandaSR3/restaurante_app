@@ -43,6 +43,15 @@ class PlatoDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
+class VentaDB(Base):
+    __tablename__ = "ventas"
+
+    id = Column(Integer, primary_key=True)
+    mesa = Column(Integer)
+    total = Column(Float)
+    metodo_pago = Column(String)
+    fecha = Column(DateTime, default=datetime.utcnow)
+
 # -------------------- INICIO --------------------
 
 @app.get("/", response_class=HTMLResponse)
@@ -106,14 +115,19 @@ def ver_mesa(numero: int):
     html += f"<h2>Total actual: ${total:.2f}</h2>"
 
     html += f"""
-    <form method="post" action="/cerrar_mesa/{numero}">
-        <button type="submit" style="background:red;color:white;">
-            💰 Cerrar Cuenta
-        </button>
-    </form>
+<form method="post" action="/cerrar_mesa/{numero}">
+    <h3>Seleccionar Método de Pago</h3>
+    <select name="metodo_pago">
+        <option value="Efectivo">Efectivo</option>
+        <option value="Tarjeta">Tarjeta</option>
+        <option value="Transferencia">Transferencia</option>
+    </select>
     <br><br>
-    <a href="/">⬅ Volver al inicio</a>
-    """
+    <button type="submit" style="background:red;color:white;">
+        💰 Cerrar Cuenta
+    </button>
+</form>
+"""
 
     db.close()
     return html
@@ -143,7 +157,7 @@ def agregar_plato(numero: int, plato_id: int = Form(...), cantidad: int = Form(.
 # -------------------- CERRAR MESA --------------------
 
 @app.post("/cerrar_mesa/{numero}")
-def cerrar_mesa(numero: int):
+def cerrar_mesa(numero: int, metodo_pago: str = Form(...)):
     db = SessionLocal()
 
     pedidos = db.query(PedidoDB).filter(
@@ -151,6 +165,18 @@ def cerrar_mesa(numero: int):
         PedidoDB.cerrado == False
     ).all()
 
+    total = sum(p.precio * p.cantidad for p in pedidos)
+
+    # Crear registro de venta
+    nueva_venta = VentaDB(
+        mesa=numero,
+        total=total,
+        metodo_pago=metodo_pago
+    )
+
+    db.add(nueva_venta)
+
+    # Cerrar pedidos
     for pedido in pedidos:
         pedido.cerrado = True
 
