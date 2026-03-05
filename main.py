@@ -302,20 +302,41 @@ def ventas_hoy():
     db = SessionLocal()
 
     hoy = date.today()
-    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
 
-    html = "<h1>Ventas de Hoy 📅</h1><hr>"
+    ventas = db.query(VentaDB).all()
 
     total = 0
+    efectivo = 0
+    tarjeta = 0
+    transferencia = 0
 
-    for pedido in pedidos:
-        if pedido.fecha and pedido.fecha.date() == hoy: 
-                subtotal = pedido.precio * pedido.cantidad
-                total += subtotal
-                html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
+    for venta in ventas:
+        if venta.fecha and venta.fecha.date() == hoy:
+            total += venta.total
 
-    html += f"<hr><h2>Total Hoy: ${total:.2f}</h2>"
-    html += "<br><a href='/'>⬅ Volver</a>"
+            if venta.metodo_pago == "Efectivo":
+                efectivo += venta.total
+            elif venta.metodo_pago == "Tarjeta":
+                tarjeta += venta.total
+            elif venta.metodo_pago == "Transferencia":
+                transferencia += venta.total
+
+    cantidad = len([v for v in ventas if v.fecha and v.fecha.date() == hoy])
+    promedio = total / cantidad if cantidad > 0 else 0
+
+    html = f"""
+    <h1>Dashboard Hoy 📊</h1>
+    <hr>
+    <h2>Total Hoy: ${total:.2f}</h2>
+    <h3>Efectivo: ${efectivo:.2f}</h3>
+    <h3>Tarjeta: ${tarjeta:.2f}</h3>
+    <h3>Transferencia: ${transferencia:.2f}</h3>
+    <hr>
+    <h3>Cantidad de Ventas: {cantidad}</h3>
+    <h3>Ticket Promedio: ${promedio:.2f}</h3>
+    <br>
+    <a href='/'>⬅ Volver</a>
+    """
 
     db.close()
     return html
