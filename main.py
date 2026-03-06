@@ -124,10 +124,20 @@ transform:scale(1.05);
         <h1>🍽️ Sistema POS Restaurante</h1>
 
         <div class="menu">
-            <a href='/admin/login'>⚙️ Admin</a>
-            <a href='/admin/hoy'>📊 Dashboard</a>
-            <a href='/cocina'>👩‍🍳 Cocina</a>
-        </div>
+
+<a href='/dashboard'>🍽️ Mesas</a>
+
+<a href='/cocina'>👩‍🍳 Cocina</a>
+
+<a href='/admin/login'>⚙️ Admin</a>
+
+<a href='/admin/hoy'>📊 Ventas Hoy</a>
+
+<a href='/admin/mesas_hoy'>🧾 Tickets Hoy</a>
+
+<a href='/admin/platos_vendidos'>🏆 Ranking Platos</a>
+
+</div>
 
         <div class="mesas">
     """
@@ -147,84 +157,192 @@ transform:scale(1.05);
 
 @app.get("/mesa/{numero}", response_class=HTMLResponse)
 def ver_mesa(numero: int):
+
     db = SessionLocal()
 
     platos = db.query(PlatoDB).all()
+
     pedidos = db.query(PedidoDB).filter(
         PedidoDB.mesa == numero,
         PedidoDB.cerrado == False
     ).all()
 
-    html = f"<h1>Mesa {numero}</h1>"
-    html += '<br><a href="/dashboard">⬅ Volver</a><br><br>'
+    total = sum(p.precio * p.cantidad for p in pedidos)
 
-    html += f"""
+    html = f"""
+    <html>
+
+    <head>
+
+    <style>
+
+    body{{
+    font-family:Arial;
+    background:#f4f6f9;
+    padding:30px;
+    }}
+
+    h1{{
+    text-align:center;
+    }}
+
+    .contenedor{{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:30px;
+    }}
+
+    .card{{
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0px 4px 10px rgba(0,0,0,0.1);
+    }}
+
+    select,input,button{{
+    padding:8px;
+    margin-top:5px;
+    }}
+
+    .pedido{{
+    border-bottom:1px solid #ddd;
+    padding:10px 0;
+    }}
+
+    .total{{
+    font-size:22px;
+    font-weight:bold;
+    margin-top:20px;
+    }}
+
+    .cerrar{{
+    background:red;
+    color:white;
+    padding:12px;
+    border:none;
+    border-radius:6px;
+    }}
+
+    </style>
+
+    </head>
+
+    <body>
+
+    <h1>Mesa {numero}</h1>
+
+    <a href="/dashboard">⬅ Volver</a>
+
+    <div class="contenedor">
+
+    <div class="card">
+
+    <h2>Agregar Plato</h2>
+
     <form method="post" action="/agregar_plato/{numero}">
-        <select name="plato_id">
+
+    Plato
+
+    <br>
+
+    <select name="plato_id">
     """
 
     for plato in platos:
         html += f"<option value='{plato.id}'>{plato.nombre} - ${plato.precio}</option>"
 
     html += """
-        </select>
-        Cantidad: <input type="number" name="cantidad" value="1">
-        Comentario: <input name="comentario">
-        <button type="submit">Agregar</button>
+    </select>
+
+    <br>
+
+    Cantidad
+
+    <br>
+
+    <input type="number" name="cantidad" value="1">
+
+    <br>
+
+    Comentario
+
+    <br>
+
+    <input name="comentario">
+
+    <br><br>
+
+    <button>Agregar</button>
+
     </form>
-    <hr>
+
+    </div>
+
+    <div class="card">
+
+    <h2>Pedido Actual</h2>
     """
 
-    total = sum(p.precio * p.cantidad for p in pedidos)
-
     for pedido in pedidos:
+
         subtotal = pedido.precio * pedido.cantidad
 
         html += f"""
-        <p>
+        <div class="pedido">
+
         {pedido.nombre} x{pedido.cantidad}
-        - ${subtotal:.2f}
+
+        — ${subtotal:.2f}
+
         ({pedido.estado})
+
+        <br>
 
         <a href="/sumar/{pedido.id}">➕</a>
         <a href="/restar/{pedido.id}">➖</a>
-        <a href="/eliminar/{pedido.id}" style="color:red;">❌</a>
+        <a href="/eliminar/{pedido.id}">❌</a>
 
-        </p>
+        </div>
         """
-
-        html += f"""
-        <p>
-        {pedido.nombre} x{pedido.cantidad}
-        - ${subtotal:.2f}
-        ({pedido.estado})
-        </p>
-        """
-
-    html += f"<h2>Total: ${total:.2f}</h2>"
 
     html += f"""
-<form method="post" action="/cerrar_mesa/{numero}" 
-onsubmit="return confirm('¿Seguro que deseas cerrar la cuenta?');">
 
-    <h3>Seleccionar Método de Pago</h3>
+    <div class="total">
+    Total: ${total:.2f}
+    </div>
+
+    <form method="post" action="/cerrar_mesa/{numero}"
+    onsubmit="return confirm('¿Cerrar cuenta?')">
+
+    <br>
 
     <select name="metodo_pago">
-        <option value="Efectivo">Efectivo</option>
-        <option value="Tarjeta">Tarjeta</option>
-        <option value="Transferencia">Transferencia</option>
+
+    <option>Efectivo</option>
+    <option>Tarjeta</option>
+    <option>Transferencia</option>
+
     </select>
 
     <br><br>
 
-    <button type="submit" style="background:red;color:white;">
-        💰 Cerrar Cuenta
+    <button class="cerrar">
+    💰 Cerrar Cuenta
     </button>
 
-</form>
-"""
+    </form>
+
+    </div>
+
+    </div>
+
+    </body>
+
+    </html>
+    """
 
     db.close()
+
     return html
 # -------------------- AGREGAR PLATO --------------------
 
@@ -293,7 +411,7 @@ def cocina():
     html = """
     <html>
     <head>
-    <meta http-equiv="refresh" content="10">
+    <meta http-equiv="refresh" content="5">
     <style>
     body{
         font-family:Arial;
@@ -387,7 +505,6 @@ def admin_platos():
      html += f"""
      <p>
      {plato.nombre} - ${plato.precio}
-     <a href="/admin/eliminar_plato/{plato.id}" style="color:red;">❌ Eliminar</a>
      </p>
      """
 
