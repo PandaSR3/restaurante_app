@@ -250,33 +250,69 @@ def cerrar_mesa(numero: int, metodo_pago: str = Form(...)):
 @app.get("/cocina", response_class=HTMLResponse)
 def cocina():
     db = SessionLocal()
+
     pedidos = db.query(PedidoDB).filter(
         PedidoDB.cerrado == False
     ).order_by(PedidoDB.id.desc()).all()
 
-    html = "<h1>Vista Cocina 👩‍🍳</h1><br>"
+    html = """
+    <html>
+    <head>
+    <meta http-equiv="refresh" content="10">
+    <style>
+    body{
+        font-family:Arial;
+        background:#111;
+        color:white;
+        text-align:center;
+    }
+
+    .pedido{
+        background:#222;
+        margin:15px;
+        padding:15px;
+        border-radius:10px;
+    }
+
+    .pendiente{
+        color:orange;
+        font-weight:bold;
+    }
+
+    .listo{
+        color:lightgreen;
+        font-weight:bold;
+    }
+    </style>
+    </head>
+    <body>
+
+    <h1>👩‍🍳 Cocina</h1>
+    """
 
     for pedido in pedidos:
-        color = "orange" if pedido.estado == "Pendiente" else "green"
+
+        clase = "pendiente" if pedido.estado == "Pendiente" else "listo"
 
         html += f"""
-        <div style='border:1px solid black;margin:10px;padding:10px;'>
-            <h3>Mesa {pedido.mesa}</h3>
-            <p>{pedido.nombre} x{pedido.cantidad}</p>
-            <p>Comentario: {pedido.comentario}</p>
-            <p>Estado: <b style='color:{color}'>{pedido.estado}</b></p>
+        <div class='pedido'>
+        <h2>Mesa {pedido.mesa}</h2>
+        <h3>{pedido.nombre} x{pedido.cantidad}</h3>
+        <p>Comentario: {pedido.comentario}</p>
+        <p class='{clase}'>{pedido.estado}</p>
         """
 
         if pedido.estado == "Pendiente":
+
             html += f"""
             <form method='post' action='/cambiar_estado/{pedido.id}'>
-                <button type='submit'>Marcar como Listo</button>
+            <button style='padding:10px;'>Marcar Listo</button>
             </form>
             """
 
         html += "</div>"
 
-    html += "<br><a href='/'>Volver</a>"
+    html += "<br><a href='/'>⬅ Volver</a></body></html>"
 
     db.close()
     return html
@@ -417,3 +453,86 @@ def validar_login(password: str = Form(...)):
         return RedirectResponse("/admin/platos", status_code=303)
     else:
         return HTMLResponse("<h3>❌ Contraseña incorrecta</h3><a href='/admin/login'>Volver</a>")
+    
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    db = SessionLocal()
+
+    html = """
+    <h1>Dashboard Mesas 🍽️</h1>
+    <style>
+    .grid{
+        display:grid;
+        grid-template-columns:repeat(5,1fr);
+        gap:20px;
+        margin-top:30px;
+    }
+
+    .mesa{
+        padding:30px;
+        border-radius:12px;
+        text-align:center;
+        font-size:20px;
+        font-weight:bold;
+        text-decoration:none;
+        color:white;
+    }
+
+    .libre{
+        background-color:green;
+    }
+
+    .ocupada{
+        background-color:red;
+    }
+    </style>
+
+    <div class='grid'>
+    """
+
+    for i in range(1, 11):
+
+        pedidos = db.query(PedidoDB).filter(
+            PedidoDB.mesa == i,
+            PedidoDB.cerrado == False
+        ).count()
+
+        estado = "ocupada" if pedidos > 0 else "libre"
+
+        html += f"""
+        <a class='mesa {estado}' href='/mesa/{i}'>
+        Mesa {i}
+        </a>
+        """
+
+    html += "</div><br><a href='/'>⬅ Volver</a>"
+
+    db.close()
+    return html
+
+@app.get("/admin/platos_vendidos", response_class=HTMLResponse)
+def platos_vendidos():
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
+
+    conteo = {}
+
+    for p in pedidos:
+
+        if p.nombre not in conteo:
+            conteo[p.nombre] = 0
+
+        conteo[p.nombre] += p.cantidad
+
+    ranking = sorted(conteo.items(), key=lambda x: x[1], reverse=True)
+
+    html = "<h1>Platos Más Vendidos 🍽️</h1><hr>"
+
+    for nombre, cantidad in ranking:
+        html += f"<p>{nombre} — {cantidad} vendidos</p>"
+
+    html += "<br><a href='/'>⬅ Volver</a>"
+
+    db.close()
+    return html
