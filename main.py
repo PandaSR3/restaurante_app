@@ -19,6 +19,105 @@ Base = declarative_base()
 
 app = FastAPI()
 
+def plantilla(titulo, contenido):
+
+    return f"""
+    <html>
+
+    <head>
+
+    <title>{titulo}</title>
+
+    <style>
+
+    body {{
+        font-family: Arial;
+        background:#f4f6f9;
+        margin:0;
+        padding:0;
+    }}
+
+    header {{
+        background:#2c3e50;
+        color:white;
+        padding:15px;
+        text-align:center;
+    }}
+
+    .container {{
+        padding:30px;
+    }}
+
+    .grid {{
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+        gap:20px;
+    }}
+
+    .card {{
+        background:white;
+        padding:20px;
+        border-radius:10px;
+        box-shadow:0px 4px 10px rgba(0,0,0,0.1);
+        text-align:center;
+        text-decoration:none;
+        color:black;
+        font-weight:bold;
+    }}
+
+    .card:hover {{
+        background:#ecf0f1;
+    }}
+
+    button {{
+        padding:10px 20px;
+        border:none;
+        border-radius:8px;
+        background:#3498db;
+        color:white;
+        cursor:pointer;
+    }}
+
+    table {{
+        width:100%;
+        border-collapse:collapse;
+        background:white;
+    }}
+
+    th,td {{
+        padding:10px;
+        border-bottom:1px solid #ddd;
+        text-align:center;
+    }}
+
+    th {{
+        background:#34495e;
+        color:white;
+    }}
+
+    </style>
+
+    </head>
+
+    <body>
+
+    <header>
+
+    <h1>{titulo}</h1>
+
+    </header>
+
+    <div class="container">
+
+    {contenido}
+
+    </div>
+
+    </body>
+
+    </html>
+    """
+
 # -------------------- MODELOS --------------------
 
 class PedidoDB(Base):
@@ -696,54 +795,9 @@ def validar_login(password: str = Form(...)):
 @app.get("/admin", response_class=HTMLResponse)
 def panel_admin():
 
-    html = """
-    <html>
+    contenido = """
 
-    <head>
-
-    <style>
-
-    body{
-    font-family:Arial;
-    background:#f4f6f9;
-    text-align:center;
-    }
-
-    h1{
-    margin-top:30px;
-    }
-
-    .panel{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:20px;
-    padding:40px;
-    }
-
-    .card{
-    background:white;
-    padding:30px;
-    border-radius:12px;
-    box-shadow:0px 4px 10px rgba(0,0,0,0.1);
-    text-decoration:none;
-    color:black;
-    font-size:18px;
-    font-weight:bold;
-    }
-
-    .card:hover{
-    background:#ecf0f1;
-    }
-
-    </style>
-
-    </head>
-
-    <body>
-
-    <h1>⚙️ Panel Administrador</h1>
-
-    <div class="panel">
+    <div class="grid">
 
     <a class="card" href="/admin/platos">
     🍽️ Gestionar Platos
@@ -754,7 +808,7 @@ def panel_admin():
     </a>
 
     <a class="card" href="/admin/historial">
-    🧾 Historial
+    📜 Historial
     </a>
 
     <a class="card" href="/admin/mesas_hoy">
@@ -766,7 +820,11 @@ def panel_admin():
     </a>
 
     <a class="card" href="/admin/reportes">
-    📁 Reportes Excel
+    📁 Exportar Excel
+    </a>
+
+    <a class="card" href="/admin/graficas">
+    📈 Gráficas de Ventas
     </a>
 
     </div>
@@ -775,12 +833,9 @@ def panel_admin():
 
     <a href="/">⬅ Volver</a>
 
-    </body>
-
-    </html>
     """
 
-    return html
+    return plantilla("Panel Administrador", contenido)
     
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
@@ -1114,3 +1169,160 @@ def excel_mes():
     df.to_excel(archivo, index=False)
 
     return FileResponse(archivo, filename=archivo)
+
+@app.get("/admin/mesas_hoy", response_class=HTMLResponse)
+def mesas_hoy():
+
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    ventas = db.query(VentaDB).all()
+
+    filas = ""
+
+    for v in ventas:
+
+        if v.fecha.date() == hoy:
+
+            filas += f"""
+            <tr>
+            <td>Mesa {v.mesa}</td>
+            <td>${v.total:.2f}</td>
+            <td>{v.metodo_pago}</td>
+            <td>{v.fecha}</td>
+            </tr>
+            """
+
+    contenido = f"""
+
+    <table>
+
+    <tr>
+    <th>Mesa</th>
+    <th>Total</th>
+    <th>Pago</th>
+    <th>Fecha</th>
+    </tr>
+
+    {filas}
+
+    </table>
+
+    <br>
+
+    <a href="/admin">⬅ Volver</a>
+
+    """
+
+    db.close()
+
+    return plantilla("Mesas Cerradas Hoy", contenido)
+
+@app.get("/admin/platos_vendidos", response_class=HTMLResponse)
+def ranking_platos():
+
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.cerrado == True
+    ).all()
+
+    conteo = {}
+
+    for p in pedidos:
+
+        if p.nombre not in conteo:
+            conteo[p.nombre] = 0
+
+        conteo[p.nombre] += p.cantidad
+
+    filas = ""
+
+    ranking = sorted(conteo.items(), key=lambda x: x[1], reverse=True)
+
+    for plato, cantidad in ranking:
+
+        filas += f"""
+        <tr>
+        <td>{plato}</td>
+        <td>{cantidad}</td>
+        </tr>
+        """
+
+    contenido = f"""
+
+    <table>
+
+    <tr>
+    <th>Plato</th>
+    <th>Cantidad Vendida</th>
+    </tr>
+
+    {filas}
+
+    </table>
+
+    <br>
+
+    <a href="/admin">⬅ Volver</a>
+
+    """
+
+    db.close()
+
+    return plantilla("Ranking de Platos", contenido)
+
+@app.get("/admin/graficas", response_class=HTMLResponse)
+def graficas():
+
+    db = SessionLocal()
+
+    ventas = db.query(VentaDB).all()
+
+    dias = {}
+    
+    for v in ventas:
+
+        dia = v.fecha.date()
+
+        if dia not in dias:
+            dias[dia] = 0
+
+        dias[dia] += v.total
+
+    labels = list(dias.keys())
+    valores = list(dias.values())
+
+    contenido = f"""
+
+    <canvas id="grafica"></canvas>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+
+    const ctx = document.getElementById('grafica');
+
+    new Chart(ctx, {{
+        type: 'bar',
+        data: {{
+            labels: {labels},
+            datasets: [{{
+                label: 'Ventas',
+                data: {valores}
+            }}]
+        }}
+    }});
+
+    </script>
+
+    <br><br>
+
+    <a href="/admin">⬅ Volver</a>
+
+    """
+
+    db.close()
+
+    return plantilla("Gráficas de Ventas", contenido)
