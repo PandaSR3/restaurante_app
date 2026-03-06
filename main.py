@@ -62,41 +62,63 @@ def home():
     <head>
         <title>POS Restaurante</title>
         <style>
-            body {
-                font-family: Arial;
-                text-align: center;
-                background-color: #f4f6f9;
-            }
-            h1 {
-                color: #333;
-            }
-            .menu {
-                margin: 20px;
-            }
-            .menu a {
-                margin: 10px;
-                padding: 10px 20px;
-                background-color: #2c3e50;
-                color: white;
-                text-decoration: none;
-                border-radius: 8px;
-            }
-            .mesas {
-                display: grid;
-                grid-template-columns: repeat(5, 1fr);
-                gap: 15px;
-                margin: 30px;
-            }
-            .mesa {
-                padding: 20px;
-                background-color: white;
-                border-radius: 12px;
-                box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
-                text-decoration: none;
-                color: black;
-                font-weight: bold;
-            }
-        </style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+margin:0;
+padding:0;
+}
+
+h1{
+background:#2c3e50;
+color:white;
+padding:20px;
+margin:0;
+}
+
+.menu{
+padding:15px;
+background:white;
+box-shadow:0px 2px 10px rgba(0,0,0,0.1);
+}
+
+.menu a{
+margin-right:15px;
+padding:10px 20px;
+background:#3498db;
+color:white;
+text-decoration:none;
+border-radius:6px;
+font-weight:bold;
+}
+
+.mesas{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+gap:20px;
+padding:30px;
+}
+
+.mesa{
+background:white;
+padding:30px;
+border-radius:12px;
+box-shadow:0px 4px 10px rgba(0,0,0,0.15);
+font-size:20px;
+text-align:center;
+text-decoration:none;
+color:#333;
+transition:0.2s;
+}
+
+.mesa:hover{
+background:#2ecc71;
+color:white;
+transform:scale(1.05);
+}
+
+</style>
     </head>
     <body>
         <h1>🍽️ Sistema POS Restaurante</h1>
@@ -454,6 +476,49 @@ def ventas_hoy():
     db.close()
     return html
 
+@app.get("/admin/mesas_hoy", response_class=HTMLResponse)
+def mesas_hoy():
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    ventas = db.query(VentaDB).all()
+
+    html = """
+    <h1>Mesas Cerradas Hoy 🍽️</h1>
+    <hr>
+    <table border="1" cellpadding="10">
+    <tr>
+        <th>Mesa</th>
+        <th>Total</th>
+        <th>Método de Pago</th>
+        <th>Hora</th>
+        <th>Ticket</th>
+    </tr>
+    """
+
+    for venta in ventas:
+        if venta.fecha and venta.fecha.date() == hoy:
+
+            hora = venta.fecha.strftime("%H:%M")
+
+            html += f"""
+            <tr>
+                <td>{venta.mesa}</td>
+                <td>${venta.total:.2f}</td>
+                <td>{venta.metodo_pago}</td>
+                <td>{hora}</td>
+                <td>
+                    <a href="/ticket/{venta.id}">Ver Ticket</a>
+                </td>
+            </tr>
+            """
+
+    html += "</table><br><a href='/'>⬅ Volver</a>"
+
+    db.close()
+    return html
+
 @app.get("/admin/login", response_class=HTMLResponse)
 def login_admin():
     return """
@@ -637,3 +702,56 @@ def eliminar_plato(plato_id: int):
     db.close()
 
     return RedirectResponse("/admin/platos", status_code=303)
+
+@app.get("/ticket/{venta_id}", response_class=HTMLResponse)
+def ticket(venta_id: int):
+
+    db = SessionLocal()
+
+    venta = db.query(VentaDB).filter(VentaDB.id == venta_id).first()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.mesa == venta.mesa,
+        PedidoDB.cerrado == True
+    ).all()
+
+    html = f"""
+    <html>
+    <body style="font-family:monospace;text-align:center;">
+    
+    <h2>🍽️ Restaurante</h2>
+    <p>Mesa {venta.mesa}</p>
+    <p>{venta.fecha.strftime("%d/%m/%Y %H:%M")}</p>
+
+    <hr>
+    """
+
+    for pedido in pedidos:
+
+        subtotal = pedido.precio * pedido.cantidad
+
+        html += f"""
+        <p>
+        {pedido.nombre} x{pedido.cantidad}
+        ${subtotal:.2f}
+        </p>
+        """
+
+    html += f"""
+    <hr>
+    <h3>Total: ${venta.total:.2f}</h3>
+    <p>Pago: {venta.metodo_pago}</p>
+
+    <br>
+
+    <button onclick="window.print()">🖨️ Imprimir</button>
+
+    <br><br>
+    <a href="/">Volver</a>
+
+    </body>
+    </html>
+    """
+
+    db.close()
+    return html
