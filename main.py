@@ -163,6 +163,19 @@ def ver_mesa(numero: int):
         {pedido.nombre} x{pedido.cantidad}
         - ${subtotal:.2f}
         ({pedido.estado})
+
+        <a href="/sumar/{pedido.id}">➕</a>
+        <a href="/restar/{pedido.id}">➖</a>
+        <a href="/eliminar/{pedido.id}" style="color:red;">❌</a>
+
+        </p>
+        """
+
+        html += f"""
+        <p>
+        {pedido.nombre} x{pedido.cantidad}
+        - ${subtotal:.2f}
+        ({pedido.estado})
         </p>
         """
 
@@ -349,7 +362,12 @@ def admin_platos():
     """
 
     for plato in platos:
-        html += f"<p>{plato.nombre} - ${plato.precio}</p>"
+     html += f"""
+     <p>
+     {plato.nombre} - ${plato.precio}
+     <a href="/admin/eliminar_plato/{plato.id}" style="color:red;">❌ Eliminar</a>
+     </p>
+     """
 
     html += "<br><a href='/'>⬅ Volver</a>"
 
@@ -536,3 +554,86 @@ def platos_vendidos():
 
     db.close()
     return html
+
+# -------------------- SUMAR CANTIDAD --------------------
+
+@app.get("/sumar/{pedido_id}")
+def sumar(pedido_id: int):
+    db = SessionLocal()
+
+    pedido = db.query(PedidoDB).filter(PedidoDB.id == pedido_id).first()
+
+    if pedido:
+        pedido.cantidad += 1
+        mesa = pedido.mesa
+        db.commit()
+    else:
+        mesa = 1
+
+    db.close()
+
+    return RedirectResponse(f"/mesa/{mesa}", status_code=303)
+
+
+# -------------------- RESTAR CANTIDAD --------------------
+
+@app.get("/restar/{pedido_id}")
+def restar(pedido_id: int):
+    db = SessionLocal()
+
+    pedido = db.query(PedidoDB).filter(PedidoDB.id == pedido_id).first()
+
+    if pedido:
+
+        mesa = pedido.mesa
+
+        if pedido.cantidad > 1:
+            pedido.cantidad -= 1
+        else:
+            db.delete(pedido)
+
+        db.commit()
+
+    else:
+        mesa = 1
+
+    db.close()
+
+    return RedirectResponse(f"/mesa/{mesa}", status_code=303)
+
+
+# -------------------- ELIMINAR PEDIDO --------------------
+
+@app.get("/eliminar/{pedido_id}")
+def eliminar(pedido_id: int):
+    db = SessionLocal()
+
+    pedido = db.query(PedidoDB).filter(PedidoDB.id == pedido_id).first()
+
+    if pedido:
+        mesa = pedido.mesa
+        db.delete(pedido)
+        db.commit()
+    else:
+        mesa = 1
+
+    db.close()
+
+    return RedirectResponse(f"/mesa/{mesa}", status_code=303)
+
+# -------------------- ELIMINAR PLATO MENU --------------------
+
+@app.get("/admin/eliminar_plato/{plato_id}")
+def eliminar_plato(plato_id: int):
+
+    db = SessionLocal()
+
+    plato = db.query(PlatoDB).filter(PlatoDB.id == plato_id).first()
+
+    if plato:
+        db.delete(plato)
+        db.commit()
+
+    db.close()
+
+    return RedirectResponse("/admin/platos", status_code=303)
