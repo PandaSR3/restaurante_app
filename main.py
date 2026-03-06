@@ -237,6 +237,10 @@ transform:scale(1.05);
 
 <a href='/admin/platos_vendidos'>🏆 Ranking Platos</a>
 
+<a href='/admin/top_platos'>🍽 Top Platos</a>
+
+<a href='/admin/mesas_hoy'>📊 Mesas Hoy</a>
+
 </div>
 
         <div class="mesas">
@@ -508,10 +512,6 @@ def cocina():
         PedidoDB.cerrado == False
     ).order_by(PedidoDB.id.desc()).all()
 
-    html = """
-<meta http-equiv="refresh" content="5">
-<h1>Vista Cocina 👩‍🍳</h1>
-"""
 
     html = """
     <html>
@@ -607,16 +607,34 @@ def admin_platos():
     """
 
     for plato in platos:
-     html += f"""
-     <p>
-     {plato.nombre} - S/{plato.precio}
-     </p>
-     """
+      html += f"""
+    <p>
+    {plato.nombre} - ${plato.precio}
+    <form method="post" action="/admin/eliminar_plato/{plato.id}" style="display:inline;">
+    <button style="background:red;color:white;">Eliminar</button>
+    </form>
+    </p>
+    """
 
     html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
     return html
+
+@app.post("/admin/eliminar_plato/{plato_id}")
+def eliminar_plato(plato_id: int):
+
+    db = SessionLocal()
+
+    plato = db.query(PlatoDB).filter(PlatoDB.id == plato_id).first()
+
+    if plato:
+        db.delete(plato)
+        db.commit()
+
+    db.close()
+
+    return RedirectResponse("/admin/platos", status_code=303)
 
 
 @app.post("/admin/platos")
@@ -881,33 +899,6 @@ def dashboard():
         """
 
     html += "</div><br><a href='/'>⬅ Volver</a>"
-
-    db.close()
-    return html
-
-@app.get("/admin/platos_vendidos", response_class=HTMLResponse)
-def platos_vendidos():
-    db = SessionLocal()
-
-    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
-
-    conteo = {}
-
-    for p in pedidos:
-
-        if p.nombre not in conteo:
-            conteo[p.nombre] = 0
-
-        conteo[p.nombre] += p.cantidad
-
-    ranking = sorted(conteo.items(), key=lambda x: x[1], reverse=True)
-
-    html = "<h1>Platos Más Vendidos 🍽️</h1><hr>"
-
-    for nombre, cantidad in ranking:
-        html += f"<p>{nombre} — {cantidad} vendidos</p>"
-
-    html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
     return html
@@ -1283,6 +1274,31 @@ def ticket_mesa(mesa:int):
     html += f"<hr><h2>Total S/{total:.2f}</h2>"
 
     html += "<br><a href='/admin'>Volver</a>"
+
+    db.close()
+
+    return html
+
+@app.get("/admin/top_platos", response_class=HTMLResponse)
+def top_platos():
+
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
+
+    ranking = {}
+
+    for p in pedidos:
+        ranking[p.nombre] = ranking.get(p.nombre, 0) + p.cantidad
+
+    ranking = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
+
+    html = "<h1>🍽 Platos Más Vendidos</h1><hr>"
+
+    for plato, cantidad in ranking:
+        html += f"<p>{plato} — {cantidad}</p>"
+
+    html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
 
