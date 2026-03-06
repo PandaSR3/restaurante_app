@@ -1,9 +1,10 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
+import pandas as pd
 ADMIN_PASSWORD = "1234"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -249,7 +250,7 @@ def ver_mesa(numero: int):
     """
 
     for plato in platos:
-        html += f"<option value='{plato.id}'>{plato.nombre} - ${plato.precio}</option>"
+        html += f"<option value='{plato.id}'>{plato.nombre} - S/{plato.precio}</option>"
 
     html += """
     </select>
@@ -292,7 +293,7 @@ def ver_mesa(numero: int):
 
         {pedido.nombre} x{pedido.cantidad}
 
-        — ${subtotal:.2f}
+        — S/{subtotal:.2f}
 
         ({pedido.estado})
 
@@ -308,7 +309,7 @@ def ver_mesa(numero: int):
     html += f"""
 
     <div class="total">
-    Total: ${total:.2f}
+    Total: S/{total:.2f}
     </div>
 
     <form method="post" action="/cerrar_mesa/{numero}"
@@ -504,7 +505,7 @@ def admin_platos():
     for plato in platos:
      html += f"""
      <p>
-     {plato.nombre} - ${plato.precio}
+     {plato.nombre} - S/{plato.precio}
      </p>
      """
 
@@ -539,9 +540,9 @@ def historial():
             subtotal = pedido.precio * pedido.cantidad
             total += subtotal
 
-            html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = ${subtotal:.2f}</p>"
+            html += f"<p>Mesa {pedido.mesa} - {pedido.nombre} x{pedido.cantidad} = S/{subtotal:.2f}</p>"
 
-    html += f"<hr><h2>Total General: ${total:.2f}</h2>"
+    html += f"<hr><h2>Total General: S/{total:.2f}</h2>"
     html += "<br><a href='/'>⬅ Volver</a>"
 
     db.close()
@@ -551,6 +552,7 @@ def historial():
 
 @app.get("/admin/hoy", response_class=HTMLResponse)
 def ventas_hoy():
+
     db = SessionLocal()
 
     hoy = date.today()
@@ -562,35 +564,72 @@ def ventas_hoy():
     tarjeta = 0
     transferencia = 0
 
+    cantidad = 0
+
     for venta in ventas:
+
         if venta.fecha and venta.fecha.date() == hoy:
+
+            cantidad += 1
             total += venta.total
 
             if venta.metodo_pago == "Efectivo":
                 efectivo += venta.total
+
             elif venta.metodo_pago == "Tarjeta":
                 tarjeta += venta.total
+
             elif venta.metodo_pago == "Transferencia":
                 transferencia += venta.total
 
-    cantidad = len([v for v in ventas if v.fecha and v.fecha.date() == hoy])
     promedio = total / cantidad if cantidad > 0 else 0
 
     html = f"""
-    <h1>Dashboard Hoy 📊</h1>
-    <hr>
-    <h2>Total Hoy: ${total:.2f}</h2>
-    <h3>Efectivo: ${efectivo:.2f}</h3>
-    <h3>Tarjeta: ${tarjeta:.2f}</h3>
-    <h3>Transferencia: ${transferencia:.2f}</h3>
-    <hr>
-    <h3>Cantidad de Ventas: {cantidad}</h3>
-    <h3>Ticket Promedio: ${promedio:.2f}</h3>
+
+    <h1>📊 Ventas de Hoy</h1>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;padding:20px;">
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Total del Día</h2>
+    <h1>${total:.2f}</h1>
+    </div>
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Ventas</h2>
+    <h1>{cantidad}</h1>
+    </div>
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Ticket Promedio</h2>
+    <h1>${promedio:.2f}</h1>
+    </div>
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Efectivo</h2>
+    <h1>${efectivo:.2f}</h1>
+    </div>
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Tarjeta</h2>
+    <h1>${tarjeta:.2f}</h1>
+    </div>
+
+    <div style="background:white;padding:20px;border-radius:10px;">
+    <h2>Transferencia</h2>
+    <h1>${transferencia:.2f}</h1>
+    </div>
+
+    </div>
+
     <br>
-    <a href='/'>⬅ Volver</a>
+
+    <a href="/admin">⬅ Volver</a>
+
     """
 
     db.close()
+
     return html
 
 @app.get("/admin/mesas_hoy", response_class=HTMLResponse)
@@ -622,7 +661,7 @@ def mesas_hoy():
             html += f"""
             <tr>
                 <td>{venta.mesa}</td>
-                <td>${venta.total:.2f}</td>
+                <td>S/{venta.total:.2f}</td>
                 <td>{venta.metodo_pago}</td>
                 <td>{hora}</td>
                 <td>
@@ -650,9 +689,98 @@ def login_admin():
 @app.post("/admin/login")
 def validar_login(password: str = Form(...)):
     if password == ADMIN_PASSWORD:
-        return RedirectResponse("/admin/platos", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
     else:
         return HTMLResponse("<h3>❌ Contraseña incorrecta</h3><a href='/admin/login'>Volver</a>")
+    
+@app.get("/admin", response_class=HTMLResponse)
+def panel_admin():
+
+    html = """
+    <html>
+
+    <head>
+
+    <style>
+
+    body{
+    font-family:Arial;
+    background:#f4f6f9;
+    text-align:center;
+    }
+
+    h1{
+    margin-top:30px;
+    }
+
+    .panel{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+    padding:40px;
+    }
+
+    .card{
+    background:white;
+    padding:30px;
+    border-radius:12px;
+    box-shadow:0px 4px 10px rgba(0,0,0,0.1);
+    text-decoration:none;
+    color:black;
+    font-size:18px;
+    font-weight:bold;
+    }
+
+    .card:hover{
+    background:#ecf0f1;
+    }
+
+    </style>
+
+    </head>
+
+    <body>
+
+    <h1>⚙️ Panel Administrador</h1>
+
+    <div class="panel">
+
+    <a class="card" href="/admin/platos">
+    🍽️ Gestionar Platos
+    </a>
+
+    <a class="card" href="/admin/hoy">
+    📊 Ventas Hoy
+    </a>
+
+    <a class="card" href="/admin/historial">
+    🧾 Historial
+    </a>
+
+    <a class="card" href="/admin/mesas_hoy">
+    🪑 Mesas Cerradas Hoy
+    </a>
+
+    <a class="card" href="/admin/platos_vendidos">
+    🏆 Ranking de Platos
+    </a>
+
+    <a class="card" href="/admin/reportes">
+    📁 Reportes Excel
+    </a>
+
+    </div>
+
+    <br>
+
+    <a href="/">⬅ Volver</a>
+
+    </body>
+
+    </html>
+    """
+
+    return html
     
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
@@ -850,13 +978,13 @@ def ticket(venta_id: int):
         html += f"""
         <p>
         {pedido.nombre} x{pedido.cantidad}
-        ${subtotal:.2f}
+        S/{subtotal:.2f}
         </p>
         """
 
     html += f"""
     <hr>
-    <h3>Total: ${venta.total:.2f}</h3>
+    <h3>Total: S/{venta.total:.2f}</h3>
     <p>Pago: {venta.metodo_pago}</p>
 
     <br>
@@ -872,3 +1000,117 @@ def ticket(venta_id: int):
 
     db.close()
     return html
+
+@app.get("/admin/reportes", response_class=HTMLResponse)
+def reportes():
+
+    return """
+
+    <h1>📁 Reportes</h1>
+
+    <a href="/admin/excel/dia">Descargar Excel Hoy</a>
+
+    <br><br>
+
+    <a href="/admin/excel/semana">Descargar Excel Semana</a>
+
+    <br><br>
+
+    <a href="/admin/excel/mes">Descargar Excel Mes</a>
+
+    <br><br>
+
+    <a href="/admin">⬅ Volver</a>
+
+    """
+
+@app.get("/admin/excel/dia")
+def excel_dia():
+
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    ventas = db.query(VentaDB).all()
+
+    datos = []
+
+    for v in ventas:
+
+        if v.fecha.date() == hoy:
+
+            datos.append({
+                "Mesa": v.mesa,
+                "Total": v.total,
+                "Metodo": v.metodo_pago,
+                "Fecha": v.fecha
+            })
+
+    df = pd.DataFrame(datos)
+
+    archivo = "ventas_hoy.xlsx"
+
+    df.to_excel(archivo, index=False)
+
+    return FileResponse(archivo, filename=archivo)
+
+@app.get("/admin/excel/semana")
+def excel_semana():
+
+    db = SessionLocal()
+
+    hoy = date.today()
+    inicio = hoy - timedelta(days=7)
+
+    ventas = db.query(VentaDB).all()
+
+    datos = []
+
+    for v in ventas:
+
+        if inicio <= v.fecha.date() <= hoy:
+
+            datos.append({
+                "Mesa": v.mesa,
+                "Total": v.total,
+                "Metodo": v.metodo_pago,
+                "Fecha": v.fecha
+            })
+
+    df = pd.DataFrame(datos)
+
+    archivo = "ventas_semana.xlsx"
+
+    df.to_excel(archivo, index=False)
+
+    return FileResponse(archivo, filename=archivo)
+
+@app.get("/admin/excel/mes")
+def excel_mes():
+
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    ventas = db.query(VentaDB).all()
+
+    datos = []
+
+    for v in ventas:
+
+        if v.fecha.month == hoy.month:
+
+            datos.append({
+                "Mesa": v.mesa,
+                "Total": v.total,
+                "Metodo": v.metodo_pago,
+                "Fecha": v.fecha
+            })
+
+    df = pd.DataFrame(datos)
+
+    archivo = "ventas_mes.xlsx"
+
+    df.to_excel(archivo, index=False)
+
+    return FileResponse(archivo, filename=archivo)
