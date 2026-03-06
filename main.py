@@ -694,15 +694,15 @@ def ventas_hoy():
 
     <br>
 
-<a href="/admin/exportar_excel/dia">
-<button>📥 Descargar Excel Hoy</button>
+<a href="/admin/exportar/dia">
+<button>📥 Excel Hoy</button>
 </a>
 
-<a href="/admin/exportar_excel/semana">
+<a href="/admin/exportar/semana">
 <button>📥 Excel Semana</button>
 </a>
 
-<a href="/admin/exportar_excel/mes">
+<a href="/admin/exportar/mes">
 <button>📥 Excel Mes</button>
 </a>
 
@@ -712,7 +712,7 @@ def ventas_hoy():
 
     <div style="background:white;padding:20px;border-radius:10px;">
     <h2>Total del Día</h2>
-    <h1>${total:.2f}</h1>
+    <h1>S/{total:.2f}</h1>
     </div>
 
     <div style="background:white;padding:20px;border-radius:10px;">
@@ -722,29 +722,29 @@ def ventas_hoy():
 
     <div style="background:white;padding:20px;border-radius:10px;">
     <h2>Ticket Promedio</h2>
-    <h1>${promedio:.2f}</h1>
+    <h1>S/{promedio:.2f}</h1>
     </div>
 
     <div style="background:white;padding:20px;border-radius:10px;">
     <h2>Efectivo</h2>
-    <h1>${efectivo:.2f}</h1>
+    <h1>S/{efectivo:.2f}</h1>
     </div>
 
     <div style="background:white;padding:20px;border-radius:10px;">
     <h2>Tarjeta</h2>
-    <h1>${tarjeta:.2f}</h1>
+    <h1>S/{tarjeta:.2f}</h1>
     </div>
 
     <div style="background:white;padding:20px;border-radius:10px;">
     <h2>Transferencia</h2>
-    <h1>${transferencia:.2f}</h1>
+    <h1>S/{transferencia:.2f}</h1>
     </div>
 
     </div>
 
     <br>
 
-    <a href="/admin">⬅ Volver</a>
+    <a href="/">⬅ Volver</a>
 
     """
 
@@ -753,97 +753,6 @@ def ventas_hoy():
     return html
 
 # -------------------- EXPORTAR EXCEL --------------------
-
-@app.get("/admin/exportar_excel/{tipo}")
-def exportar_excel(tipo: str):
-
-    db = SessionLocal()
-
-    hoy = date.today()
-
-    if tipo == "dia":
-        inicio = hoy
-
-    elif tipo == "semana":
-        inicio = hoy - timedelta(days=7)
-
-    elif tipo == "mes":
-        inicio = hoy - timedelta(days=30)
-
-    else:
-        inicio = hoy
-
-    ventas = db.query(VentaDB).all()
-
-    data = []
-
-    for venta in ventas:
-
-        if venta.fecha and venta.fecha.date() >= inicio:
-
-            data.append({
-                "Mesa": venta.mesa,
-                "Total": venta.total,
-                "Metodo Pago": venta.metodo_pago,
-                "Fecha": venta.fecha
-            })
-
-    df = pd.DataFrame(data)
-
-    archivo = f"ventas_{tipo}.xlsx"
-
-    df.to_excel(archivo, index=False)
-
-    db.close()
-
-    return FileResponse(
-        archivo,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=archivo
-    )
-
-@app.get("/admin/mesas_hoy", response_class=HTMLResponse)
-def mesas_hoy():
-    db = SessionLocal()
-
-    hoy = date.today()
-
-    ventas = db.query(VentaDB).all()
-
-    html = """
-    <h1>Mesas Cerradas Hoy 🍽️</h1>
-    <hr>
-    <table border="1" cellpadding="10">
-    <tr>
-        <th>Mesa</th>
-        <th>Total</th>
-        <th>Método de Pago</th>
-        <th>Hora</th>
-        <th>Ticket</th>
-    </tr>
-    """
-
-    for venta in ventas:
-        if venta.fecha and venta.fecha.date() == hoy:
-
-            hora = venta.fecha.strftime("%H:%M")
-
-            html += f"""
-            <tr>
-                <td>{venta.mesa}</td>
-                <td>S/{venta.total:.2f}</td>
-                <td>{venta.metodo_pago}</td>
-                <td>{hora}</td>
-                <td>
-                    <a href="/ticket/{venta.id}">Ver Ticket</a>
-                </td>
-            </tr>
-            """
-
-    html += "</table><br><a href='/'>⬅ Volver</a>"
-
-    db.close()
-    return html
 
 @app.get("/admin/login", response_class=HTMLResponse)
 def login_admin():
@@ -1071,21 +980,6 @@ def eliminar(pedido_id: int):
 
 # -------------------- ELIMINAR PLATO MENU --------------------
 
-@app.get("/admin/eliminar_plato/{plato_id}")
-def eliminar_plato(plato_id: int):
-
-    db = SessionLocal()
-
-    plato = db.query(PlatoDB).filter(PlatoDB.id == plato_id).first()
-
-    if plato:
-        db.delete(plato)
-        db.commit()
-
-    db.close()
-
-    return RedirectResponse("/admin/platos", status_code=303)
-
 @app.get("/ticket/{venta_id}", response_class=HTMLResponse)
 def ticket(venta_id: int):
 
@@ -1162,96 +1056,6 @@ def reportes():
 
     """
 
-@app.get("/admin/excel/dia")
-def excel_dia():
-
-    db = SessionLocal()
-
-    hoy = date.today()
-
-    ventas = db.query(VentaDB).all()
-
-    datos = []
-
-    for v in ventas:
-
-        if v.fecha.date() == hoy:
-
-            datos.append({
-                "Mesa": v.mesa,
-                "Total": v.total,
-                "Metodo": v.metodo_pago,
-                "Fecha": v.fecha
-            })
-
-    df = pd.DataFrame(datos)
-
-    archivo = "ventas_hoy.xlsx"
-
-    df.to_excel(archivo, index=False)
-
-    return FileResponse(archivo, filename=archivo)
-
-@app.get("/admin/excel/semana")
-def excel_semana():
-
-    db = SessionLocal()
-
-    hoy = date.today()
-    inicio = hoy - timedelta(days=7)
-
-    ventas = db.query(VentaDB).all()
-
-    datos = []
-
-    for v in ventas:
-
-        if inicio <= v.fecha.date() <= hoy:
-
-            datos.append({
-                "Mesa": v.mesa,
-                "Total": v.total,
-                "Metodo": v.metodo_pago,
-                "Fecha": v.fecha
-            })
-
-    df = pd.DataFrame(datos)
-
-    archivo = "ventas_semana.xlsx"
-
-    df.to_excel(archivo, index=False)
-
-    return FileResponse(archivo, filename=archivo)
-
-@app.get("/admin/excel/mes")
-def excel_mes():
-
-    db = SessionLocal()
-
-    hoy = date.today()
-
-    ventas = db.query(VentaDB).all()
-
-    datos = []
-
-    for v in ventas:
-
-        if v.fecha.month == hoy.month:
-
-            datos.append({
-                "Mesa": v.mesa,
-                "Total": v.total,
-                "Metodo": v.metodo_pago,
-                "Fecha": v.fecha
-            })
-
-    df = pd.DataFrame(datos)
-
-    archivo = "ventas_mes.xlsx"
-
-    df.to_excel(archivo, index=False)
-
-    return FileResponse(archivo, filename=archivo)
 
 @app.get("/admin/mesas_hoy", response_class=HTMLResponse)
 def mesas_hoy():
@@ -1271,7 +1075,7 @@ def mesas_hoy():
             filas += f"""
             <tr>
             <td>Mesa {v.mesa}</td>
-            <td>${v.total:.2f}</td>
+            <td>S/{v.total:.2f}</td>
             <td>{v.metodo_pago}</td>
             <td>{v.fecha}</td>
             </tr>
@@ -1473,10 +1277,10 @@ def ticket_mesa(mesa:int):
         total += subtotal
 
         html += f"""
-        <p>{p.nombre} x{p.cantidad} - ${subtotal:.2f}</p>
+        <p>{p.nombre} x{p.cantidad} - S/{subtotal:.2f}</p>
         """
 
-    html += f"<hr><h2>Total ${total:.2f}</h2>"
+    html += f"<hr><h2>Total S/{total:.2f}</h2>"
 
     html += "<br><a href='/admin'>Volver</a>"
 
