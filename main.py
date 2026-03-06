@@ -134,6 +134,7 @@ def ver_mesa(numero: int):
     ).all()
 
     html = f"<h1>Mesa {numero}</h1>"
+    html += '<br><a href="/dashboard">⬅ Volver</a><br><br>'
 
     html += f"""
     <form method="post" action="/agregar_plato/{numero}">
@@ -165,20 +166,26 @@ def ver_mesa(numero: int):
         </p>
         """
 
-    html += f"<h2>Total actual: ${total:.2f}</h2>"
+    html += f"<h2>Total: ${total:.2f}</h2>"
 
     html += f"""
-<form method="post" action="/cerrar_mesa/{numero}">
+<form method="post" action="/cerrar_mesa/{numero}" 
+onsubmit="return confirm('¿Seguro que deseas cerrar la cuenta?');">
+
     <h3>Seleccionar Método de Pago</h3>
+
     <select name="metodo_pago">
         <option value="Efectivo">Efectivo</option>
         <option value="Tarjeta">Tarjeta</option>
         <option value="Transferencia">Transferencia</option>
     </select>
+
     <br><br>
+
     <button type="submit" style="background:red;color:white;">
         💰 Cerrar Cuenta
     </button>
+
 </form>
 """
 
