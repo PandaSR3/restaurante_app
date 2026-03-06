@@ -509,6 +509,11 @@ def cocina():
     ).order_by(PedidoDB.id.desc()).all()
 
     html = """
+<meta http-equiv="refresh" content="5">
+<h1>Vista Cocina 👩‍🍳</h1>
+"""
+
+    html = """
     <html>
     <head>
     <meta http-equiv="refresh" content="5">
@@ -687,6 +692,22 @@ def ventas_hoy():
 
     <h1>📊 Ventas de Hoy</h1>
 
+    <br>
+
+<a href="/admin/exportar_excel/dia">
+<button>📥 Descargar Excel Hoy</button>
+</a>
+
+<a href="/admin/exportar_excel/semana">
+<button>📥 Excel Semana</button>
+</a>
+
+<a href="/admin/exportar_excel/mes">
+<button>📥 Excel Mes</button>
+</a>
+
+<br><br>
+
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;padding:20px;">
 
     <div style="background:white;padding:20px;border-radius:10px;">
@@ -730,6 +751,56 @@ def ventas_hoy():
     db.close()
 
     return html
+
+# -------------------- EXPORTAR EXCEL --------------------
+
+@app.get("/admin/exportar_excel/{tipo}")
+def exportar_excel(tipo: str):
+
+    db = SessionLocal()
+
+    hoy = date.today()
+
+    if tipo == "dia":
+        inicio = hoy
+
+    elif tipo == "semana":
+        inicio = hoy - timedelta(days=7)
+
+    elif tipo == "mes":
+        inicio = hoy - timedelta(days=30)
+
+    else:
+        inicio = hoy
+
+    ventas = db.query(VentaDB).all()
+
+    data = []
+
+    for venta in ventas:
+
+        if venta.fecha and venta.fecha.date() >= inicio:
+
+            data.append({
+                "Mesa": venta.mesa,
+                "Total": venta.total,
+                "Metodo Pago": venta.metodo_pago,
+                "Fecha": venta.fecha
+            })
+
+    df = pd.DataFrame(data)
+
+    archivo = f"ventas_{tipo}.xlsx"
+
+    df.to_excel(archivo, index=False)
+
+    db.close()
+
+    return FileResponse(
+        archivo,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=archivo
+    )
 
 @app.get("/admin/mesas_hoy", response_class=HTMLResponse)
 def mesas_hoy():
@@ -826,6 +897,18 @@ def panel_admin():
     <a class="card" href="/admin/graficas">
     📈 Gráficas de Ventas
     </a>
+
+    <a class="card" href="/admin/exportar/dia">
+📅 Excel del Día
+</a>
+
+<a class="card" href="/admin/exportar/semana">
+📆 Excel de la Semana
+</a>
+
+<a class="card" href="/admin/exportar/mes">
+🗓 Excel del Mes
+</a>
 
     </div>
 
@@ -1326,3 +1409,77 @@ def graficas():
     db.close()
 
     return plantilla("Gráficas de Ventas", contenido)
+
+@app.get("/admin/exportar/{tipo}")
+def exportar(tipo: str):
+
+    db = SessionLocal()
+
+    hoy = datetime.utcnow()
+
+    if tipo == "dia":
+        inicio = hoy.date()
+
+    elif tipo == "semana":
+        inicio = hoy.date() - timedelta(days=7)
+
+    elif tipo == "mes":
+        inicio = hoy.date() - timedelta(days=30)
+
+    else:
+        return {"error":"tipo inválido"}
+
+    ventas = db.query(VentaDB).all()
+
+    data = []
+
+    for v in ventas:
+
+        if v.fecha.date() >= inicio:
+
+            data.append({
+                "Mesa": v.mesa,
+                "Total": v.total,
+                "Metodo Pago": v.metodo_pago,
+                "Fecha": v.fecha
+            })
+
+    df = pd.DataFrame(data)
+
+    archivo = f"reporte_{tipo}.xlsx"
+
+    df.to_excel(archivo, index=False)
+
+    db.close()
+
+    return FileResponse(archivo)
+
+@app.get("/admin/ticket/{mesa}", response_class=HTMLResponse)
+def ticket_mesa(mesa:int):
+
+    db = SessionLocal()
+
+    pedidos = db.query(PedidoDB).filter(
+        PedidoDB.mesa == mesa
+    ).all()
+
+    html = f"<h1>Ticket Mesa {mesa}</h1><hr>"
+
+    total = 0
+
+    for p in pedidos:
+
+        subtotal = p.precio * p.cantidad
+        total += subtotal
+
+        html += f"""
+        <p>{p.nombre} x{p.cantidad} - ${subtotal:.2f}</p>
+        """
+
+    html += f"<hr><h2>Total ${total:.2f}</h2>"
+
+    html += "<br><a href='/admin'>Volver</a>"
+
+    db.close()
+
+    return html
