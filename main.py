@@ -263,11 +263,9 @@ transform:scale(1.05);
 
 <a href='/admin/hoy'>📊 Ventas Hoy</a>
 
-<a href='/admin/mesas_hoy'>🧾 Tickets Hoy</a>
+<a href='/admin/ventas'>🧾 Tickets Hoy</a>
 
 <a href='/admin/platos_vendidos'>🏆 Ranking Platos</a>
-
-<a href='/admin/top_platos'>🍽 Top Platos</a>
 
 <a href='/admin/mesas_hoy'>📊 Mesas Hoy</a>
 
@@ -1366,33 +1364,3 @@ def ticket_mesa(mesa:int):
     db.close()
 
     return html
-
-@app.get("/admin/top_platos", response_class=HTMLResponse)
-def top_platos():
-
-    db = SessionLocal()
-
-    pedidos = db.query(PedidoDB).filter(PedidoDB.cerrado == True).all()
-
-    ranking = {}
-
-    for p in pedidos:
-        ranking[p.nombre] = ranking.get(p.nombre, 0) + p.cantidad
-
-    ranking = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
-
-    html = "<h1>🍽 Platos Más Vendidos</h1><hr>"
-
-    for plato, cantidad in ranking:
-        html += f"<p>{plato} — {cantidad}</p>"
-
-    html += "<br><a href='/'>⬅ Volver</a>"
-
-    db.close()
-
-    return html
-
-@app.get("/grafico_metodos")
-def ver_grafico():
-
-    return FileResponse("grafico_metodos.png")
