@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, D
 from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 ADMIN_PASSWORD = "1234"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -18,6 +19,35 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 app = FastAPI()
+
+def generar_grafico_metodos(db):
+
+    ventas = db.query(VentaDB).all()
+
+    metodos = {
+        "Efectivo":0,
+        "Tarjeta":0,
+        "Transferencia":0
+    }
+
+    for v in ventas:
+        if v.metodo_pago in metodos:
+            metodos[v.metodo_pago] += v.total
+
+    nombres = list(metodos.keys())
+    valores = list(metodos.values())
+
+    plt.figure(figsize=(6,4))
+    plt.bar(nombres, valores)
+
+    plt.title("Ventas por Método de Pago")
+    plt.ylabel("Total")
+
+    ruta = "grafico_metodos.png"
+    plt.savefig(ruta)
+    plt.close()
+
+    return ruta
 
 def plantilla(titulo, contenido):
 
@@ -705,12 +735,14 @@ def ventas_hoy():
                 transferencia += venta.total
 
     promedio = total / cantidad if cantidad > 0 else 0
+    grafico = generar_grafico_metodos(db)
 
     html = f"""
 
     <h1>📊 Ventas de Hoy</h1>
 
     <br>
+    <img src="/grafico_metodos" width="400">
 
 <a href="/admin/exportar/dia">
 <button>📥 Excel Hoy</button>
@@ -1206,48 +1238,104 @@ def graficas():
     return plantilla("Gráficas de Ventas", contenido)
 
 @app.get("/admin/exportar/{tipo}")
-def exportar(tipo: str):
+def exportar_excel(tipo: str):
 
     db = SessionLocal()
-
-    hoy = datetime.utcnow()
+    hoy = date.today()
 
     if tipo == "dia":
-        inicio = hoy.date()
+        inicio = hoy
 
     elif tipo == "semana":
-        inicio = hoy.date() - timedelta(days=7)
+        inicio = hoy - timedelta(days=7)
 
     elif tipo == "mes":
-        inicio = hoy.date() - timedelta(days=30)
+        inicio = hoy - timedelta(days=30)
 
     else:
-        return {"error":"tipo inválido"}
+        inicio = hoy
 
     ventas = db.query(VentaDB).all()
+    pedidos = db.query(PedidoDB).all()
 
-    data = []
+    ventas_data = []
+    platos_data = []
+    mesas_data = []
 
-    for v in ventas:
+    total = 0
 
-        if v.fecha.date() >= inicio:
+    metodos = {
+        "Efectivo":0,
+        "Tarjeta":0,
+        "Transferencia":0
+    }
 
-            data.append({
-                "Mesa": v.mesa,
-                "Total": v.total,
-                "Metodo Pago": v.metodo_pago,
-                "Fecha": v.fecha
+    for venta in ventas:
+
+        if venta.fecha.date() >= inicio:
+
+            ventas_data.append({
+                "Mesa": venta.mesa,
+                "Total": venta.total,
+                "Metodo": venta.metodo_pago,
+                "Fecha": venta.fecha
             })
 
-    df = pd.DataFrame(data)
+            total += venta.total
+            metodos[venta.metodo_pago] += venta.total
 
-    archivo = f"reporte_{tipo}.xlsx"
+    for pedido in pedidos:
 
-    df.to_excel(archivo, index=False)
+        if pedido.fecha.date() >= inicio:
+
+            platos_data.append({
+                "Plato": pedido.nombre,
+                "Cantidad": pedido.cantidad
+            })
+
+            mesas_data.append({
+                "Mesa": pedido.mesa,
+                "Plato": pedido.nombre,
+                "Cantidad": pedido.cantidad
+            })
+
+    df_ventas = pd.DataFrame(ventas_data)
+
+    df_platos = pd.DataFrame(platos_data).groupby("Plato").sum().sort_values(by="Cantidad", ascending=False)
+
+    df_mesas = pd.DataFrame(mesas_data)
+
+    df_metodos = pd.DataFrame([
+        {"Metodo":"Efectivo","Total":metodos["Efectivo"]},
+        {"Metodo":"Tarjeta","Total":metodos["Tarjeta"]},
+        {"Metodo":"Transferencia","Total":metodos["Transferencia"]}
+    ])
+
+    ticket_promedio = total / len(ventas_data) if ventas_data else 0
+
+    df_resumen = pd.DataFrame([
+        {"Metrica":"Total Ventas","Valor":total},
+        {"Metrica":"Cantidad Ventas","Valor":len(ventas_data)},
+        {"Metrica":"Ticket Promedio","Valor":ticket_promedio}
+    ])
+
+    archivo = f"reporte_restaurante_{tipo}.xlsx"
+
+    with pd.ExcelWriter(archivo) as writer:
+
+        df_ventas.to_excel(writer, sheet_name="Ventas", index=False)
+        df_platos.to_excel(writer, sheet_name="Platos Vendidos")
+        df_mesas.to_excel(writer, sheet_name="Consumo por Mesa", index=False)
+        df_metodos.to_excel(writer, sheet_name="Metodos Pago", index=False)
+        df_resumen.to_excel(writer, sheet_name="Resumen", index=False)
 
     db.close()
 
-    return FileResponse(archivo)
+    return FileResponse(
+        archivo,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=archivo
+    )
 
 @app.get("/admin/ticket/{mesa}", response_class=HTMLResponse)
 def ticket_mesa(mesa:int):
@@ -1303,3 +1391,8 @@ def top_platos():
     db.close()
 
     return html
+
+@app.get("/grafico_metodos")
+def ver_grafico():
+
+    return FileResponse("grafico_metodos.png")
