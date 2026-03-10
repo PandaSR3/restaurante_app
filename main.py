@@ -17,7 +17,7 @@ engine = create_engine(
     connect_args={"sslmode": "require"},
     pool_pre_ping=True
 )
-
+    
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -62,6 +62,10 @@ class VentaDB(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+@app.get("/")
+def home():
+    return RedirectResponse("/dashboard")
 
 # ---------------- DASHBOARD ----------------
 
